@@ -12,7 +12,6 @@
 
 # Ignore Visual Studio and CMake files
 .vs/
-*.sln
 *.vcxproj*
 CMakeCache.txt
 CMakeFiles/
