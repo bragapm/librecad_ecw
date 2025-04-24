@@ -1,0 +1,26 @@
+# Ignore ECW SDK files
+/include/ecw/
+
+# Ignore build artifacts
+/x64/
+/build/
+/bin/
+/*.exe
+/*.dll
+/*.lib
+/*.pdb
+
+# Ignore Visual Studio and CMake files
+.vs/
+*.sln
+*.vcxproj*
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Ignore conversion output
+/*.png

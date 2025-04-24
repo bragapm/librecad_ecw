@@ -1,0 +1,6 @@
+﻿  main.cpp
+  Generating code
+  Compiler switch has changed, fall back to full compilation.
+  All 240 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  ECWConverter.vcxproj -> D:\Programming\C++\ECWConverter\x64\Release\ECWConverter.exe
