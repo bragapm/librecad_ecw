@@ -13,6 +13,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+const uint32_t DOWNSAMPLE_THRESHOLD = 10000;
 const uint32_t MAXVIEW_WINDOWSIZE = 384;
 #define RAND() ((double) rand() / (double) RAND_MAX)
 
@@ -155,5 +156,95 @@ bool read_ecw_to_file(const char* input_path, const char* output_path) {
         return false;
     }
 
+    return true;
+}
+
+bool read_ecw_to_file_2(const char* input_path, const char* output_path) {
+    NCS::CApplication App;
+    NCS::CView view;
+
+    std::cout << "[INFO] Opening file: " << input_path << std::endl;
+
+    NCS::CError err = view.Open(input_path);
+    if (!err.Success()) {
+        std::cerr << "[ERROR] Failed to open file:  " << err.GetErrorMessage() << std::endl;
+        return false;
+    }
+
+    const NCSFileInfo* info = view.GetFileInfo();
+    if (!info) {
+        std::cerr << "[ERROR] Failed to retrieve file info." << std::endl;
+        return false;
+    }
+
+    uint32_t width = info->nSizeX;
+    uint32_t height = info->nSizeY;
+    uint32_t bands = NCSMin(3U, info->nBands);
+
+    std::cout << "[INFO] Image Size: " << width << "x" << height << ", Bands: " << bands << std::endl;
+
+    std::vector<UINT32> bandList;
+    for (uint32_t i = 0; i < bands; ++i) {
+        bandList.push_back(i);
+    }
+
+    uint32_t viewWidth = width;
+    uint32_t viewHeight = height;
+
+    // Downsample if very large
+    if (width > DOWNSAMPLE_THRESHOLD || height > DOWNSAMPLE_THRESHOLD) {
+        viewWidth = width / 4;
+        viewHeight = height / 4;
+        std::cout << "[WARN] Image too large, downsampling to " 
+            << viewWidth << "x" << viewHeight << ", Bands: " << bands << std::endl;
+    }
+
+    // SetView (request resolution)
+    err = view.SetView(bands, bandList.data(), 0, 0, width - 1, height - 1, viewWidth, viewHeight);
+    if (!err.Success()) {
+        std::cerr << "[ERROR] SetView failed: " << err.GetErrorMessage() << std::endl;
+        return false;
+    }
+
+    NCSCellType cellType = info->eCellType;
+    if (cellType != NCSCT_UINT8 && cellType != NCSCT_UINT16 &&
+        cellType != NCSCT_INT16 && cellType != NCSCT_IEEE4) {
+        std::cerr << "[ERROR] Unsupported ECW cell type: " << cellType << std::endl;
+        return false;
+    }
+
+    NCS::SDK::CBuffer2DVector Buffers;
+    Buffers.resize(bands);
+    for (uint32_t b = 0; b < bands; ++b) {
+        Buffers[b].Alloc(viewWidth, viewHeight, NCS::SDK::CBuffer2D::BT_UINT8, 
+            NCS::SDK::CBuffer2D::HEAPCOMPRESSION);
+    }
+
+    // Read image
+    NCSReadStatus readStatus = view.Read(Buffers, NCSCT_UINT8);
+    if (readStatus != NCS_READ_OK) {
+        std::cerr << "[ERROR] Read failed with code: " << readStatus << std::endl;
+        return false;
+    }
+
+    // Prepare RGB 8-bit image buffer
+    std::vector<uint8_t> imageData(viewWidth * viewHeight * 3, 0);
+    for (uint32_t y = 0; y < viewHeight; ++y) {
+        for (uint32_t x = 0; x < viewWidth; ++x) {
+            for (uint32_t b = 0; b < bands; ++b) {
+                void* ptr = Buffers[b].GetPtr(x, y);
+                if (ptr) {
+                    imageData[(y * viewWidth + x) * 3 + b] = *static_cast<uint8_t*>(ptr);
+                }
+            }
+        }
+    }
+
+    if (!stbi_write_png(output_path, viewWidth, viewHeight, 3, imageData.data(), viewWidth * 3)) {
+        std::cerr << "[ERROR] Failed to write PNG to: " << output_path << std::endl;
+        return false;
+    }
+
+    std::cout << "[INFO] Successfully wrote PNG: " << output_path << std::endl;
     return true;
 }
